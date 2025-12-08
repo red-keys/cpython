@@ -7094,6 +7094,17 @@ AS_CASE([$with_openssl_rpath],
 )
 AC_MSG_RESULT([$OPENSSL_RPATH])
 
+AC_MSG_CHECKING([for --enable-ntls-version])  
+AC_ARG_ENABLE([ntls-version],  
+  [AS_HELP_STRING([--enable-ntls-version], [enable ntls version string])],  
+  [enable_ntls_version=$enableval], [enable_ntls_version=no])  
+AC_MSG_RESULT([$enable_ntls_version])  
+  
+if test "$enable_ntls_version" = "yes"; then  
+  AC_DEFINE([WITH_NTLS_VERSION], [1],  
+            [Define if ntls version string is enabled])  
+fi
+
 # This static linking is NOT OFFICIALLY SUPPORTED and not advertised.
 # Requires static OpenSSL build with position-independent code. Some features
 # like DSO engines or external OSSL providers don't work. Only tested with GCC
