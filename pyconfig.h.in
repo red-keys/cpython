@@ -1827,6 +1827,9 @@
    library plus accessory files). */
 #undef WITH_NEXT_FRAMEWORK
 
+/* Define if ntls version string is enabled */
+#undef WITH_NTLS_VERSION
+
 /* Define if you want to compile in Python-specific mallocs */
 #undef WITH_PYMALLOC
 

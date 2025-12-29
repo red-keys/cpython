@@ -544,6 +544,148 @@ exit:
     return return_value;
 }
 
+PyDoc_STRVAR(_ssl__SSLContext_load_sign_cert_chain__doc__,
+"load_sign_cert_chain($self, /, certfile, keyfile=None, password=None)\n"
+"--\n"
+"\n");
+
+#define _SSL__SSLCONTEXT_LOAD_SIGN_CERT_CHAIN_METHODDEF    \
+    {"load_sign_cert_chain", _PyCFunction_CAST(_ssl__SSLContext_load_sign_cert_chain), METH_FASTCALL|METH_KEYWORDS, _ssl__SSLContext_load_sign_cert_chain__doc__},
+
+static PyObject *
+_ssl__SSLContext_load_sign_cert_chain_impl(PySSLContext *self,
+                                           PyObject *certfile,
+                                           PyObject *keyfile,
+                                           PyObject *password);
+
+static PyObject *
+_ssl__SSLContext_load_sign_cert_chain(PySSLContext *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames)
+{
+    PyObject *return_value = NULL;
+    #if defined(Py_BUILD_CORE) && !defined(Py_BUILD_CORE_MODULE)
+
+    #define NUM_KEYWORDS 3
+    static struct {
+        PyGC_Head _this_is_not_used;
+        PyObject_VAR_HEAD
+        PyObject *ob_item[NUM_KEYWORDS];
+    } _kwtuple = {
+        .ob_base = PyVarObject_HEAD_INIT(&PyTuple_Type, NUM_KEYWORDS)
+        .ob_item = { &_Py_ID(certfile), &_Py_ID(keyfile), &_Py_ID(password), },
+    };
+    #undef NUM_KEYWORDS
+    #define KWTUPLE (&_kwtuple.ob_base.ob_base)
+
+    #else  // !Py_BUILD_CORE
+    #  define KWTUPLE NULL
+    #endif  // !Py_BUILD_CORE
+
+    static const char * const _keywords[] = {"certfile", "keyfile", "password", NULL};
+    static _PyArg_Parser _parser = {
+        .keywords = _keywords,
+        .fname = "load_sign_cert_chain",
+        .kwtuple = KWTUPLE,
+    };
+    #undef KWTUPLE
+    PyObject *argsbuf[3];
+    Py_ssize_t noptargs = nargs + (kwnames ? PyTuple_GET_SIZE(kwnames) : 0) - 1;
+    PyObject *certfile;
+    PyObject *keyfile = Py_None;
+    PyObject *password = Py_None;
+
+    args = _PyArg_UnpackKeywords(args, nargs, NULL, kwnames, &_parser, 1, 3, 0, argsbuf);
+    if (!args) {
+        goto exit;
+    }
+    certfile = args[0];
+    if (!noptargs) {
+        goto skip_optional_pos;
+    }
+    if (args[1]) {
+        keyfile = args[1];
+        if (!--noptargs) {
+            goto skip_optional_pos;
+        }
+    }
+    password = args[2];
+skip_optional_pos:
+    return_value = _ssl__SSLContext_load_sign_cert_chain_impl(self, certfile, keyfile, password);
+
+exit:
+    return return_value;
+}
+
+PyDoc_STRVAR(_ssl__SSLContext_load_enc_cert_chain__doc__,
+"load_enc_cert_chain($self, /, certfile, keyfile=None, password=None)\n"
+"--\n"
+"\n");
+
+#define _SSL__SSLCONTEXT_LOAD_ENC_CERT_CHAIN_METHODDEF    \
+    {"load_enc_cert_chain", _PyCFunction_CAST(_ssl__SSLContext_load_enc_cert_chain), METH_FASTCALL|METH_KEYWORDS, _ssl__SSLContext_load_enc_cert_chain__doc__},
+
+static PyObject *
+_ssl__SSLContext_load_enc_cert_chain_impl(PySSLContext *self,
+                                          PyObject *certfile,
+                                          PyObject *keyfile,
+                                          PyObject *password);
+
+static PyObject *
+_ssl__SSLContext_load_enc_cert_chain(PySSLContext *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames)
+{
+    PyObject *return_value = NULL;
+    #if defined(Py_BUILD_CORE) && !defined(Py_BUILD_CORE_MODULE)
+
+    #define NUM_KEYWORDS 3
+    static struct {
+        PyGC_Head _this_is_not_used;
+        PyObject_VAR_HEAD
+        PyObject *ob_item[NUM_KEYWORDS];
+    } _kwtuple = {
+        .ob_base = PyVarObject_HEAD_INIT(&PyTuple_Type, NUM_KEYWORDS)
+        .ob_item = { &_Py_ID(certfile), &_Py_ID(keyfile), &_Py_ID(password), },
+    };
+    #undef NUM_KEYWORDS
+    #define KWTUPLE (&_kwtuple.ob_base.ob_base)
+
+    #else  // !Py_BUILD_CORE
+    #  define KWTUPLE NULL
+    #endif  // !Py_BUILD_CORE
+
+    static const char * const _keywords[] = {"certfile", "keyfile", "password", NULL};
+    static _PyArg_Parser _parser = {
+        .keywords = _keywords,
+        .fname = "load_enc_cert_chain",
+        .kwtuple = KWTUPLE,
+    };
+    #undef KWTUPLE
+    PyObject *argsbuf[3];
+    Py_ssize_t noptargs = nargs + (kwnames ? PyTuple_GET_SIZE(kwnames) : 0) - 1;
+    PyObject *certfile;
+    PyObject *keyfile = Py_None;
+    PyObject *password = Py_None;
+
+    args = _PyArg_UnpackKeywords(args, nargs, NULL, kwnames, &_parser, 1, 3, 0, argsbuf);
+    if (!args) {
+        goto exit;
+    }
+    certfile = args[0];
+    if (!noptargs) {
+        goto skip_optional_pos;
+    }
+    if (args[1]) {
+        keyfile = args[1];
+        if (!--noptargs) {
+            goto skip_optional_pos;
+        }
+    }
+    password = args[2];
+skip_optional_pos:
+    return_value = _ssl__SSLContext_load_enc_cert_chain_impl(self, certfile, keyfile, password);
+
+exit:
+    return return_value;
+}
+
 PyDoc_STRVAR(_ssl__SSLContext_load_cert_chain__doc__,
 "load_cert_chain($self, /, certfile, keyfile=None, password=None)\n"
 "--\n"
@@ -1542,4 +1684,4 @@ exit:
 #ifndef _SSL_ENUM_CRLS_METHODDEF
     #define _SSL_ENUM_CRLS_METHODDEF
 #endif /* !defined(_SSL_ENUM_CRLS_METHODDEF) */
-/*[clinic end generated code: output=4d9b81fa81f520f0 input=a9049054013a1b77]*/
+/*[clinic end generated code: output=7596b89b7c80815e input=a9049054013a1b77]*/

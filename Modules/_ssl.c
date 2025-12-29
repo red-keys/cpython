@@ -216,8 +216,11 @@ enum py_ssl_version {
     PY_SSL_VERSION_TLS1,
     PY_SSL_VERSION_TLS1_1,
     PY_SSL_VERSION_TLS1_2,
+    PY_SSL_VERSION_NTLS, 
     PY_SSL_VERSION_TLS_CLIENT=0x10,
     PY_SSL_VERSION_TLS_SERVER,
+    PY_SSL_VERSION_NTLS_CLIENT,
+    PY_SSL_VERSION_NTLS_SERVER,
 };
 
 enum py_proto_version {
@@ -814,6 +817,20 @@ newPySSLSocket(PySSLContext *sslctx, PySocketSockObject *sock,
         _setSSLError(get_state_ctx(sslctx),
                      "Cannot create a client socket with a "
                      "PROTOCOL_TLS_SERVER context", 0, __FILE__, __LINE__);
+        return NULL;
+    }
+    if ((socket_type == PY_SSL_SERVER) &&
+        (sslctx->protocol == PY_SSL_VERSION_NTLS_CLIENT)) {
+        _setSSLError(get_state_ctx(sslctx),
+                     "Cannot create a server socket with a "
+                     "PROTOCOL_NTLS_CLIENT context", 0, __FILE__, __LINE__);
+        return NULL;
+    }
+    if ((socket_type == PY_SSL_CLIENT) &&
+        (sslctx->protocol == PY_SSL_VERSION_NTLS_SERVER)) {
+        _setSSLError(get_state_ctx(sslctx),
+                     "Cannot create a client socket with a "
+                     "PROTOCOL_NTLS_SERVER context", 0, __FILE__, __LINE__);
         return NULL;
     }
 
@@ -2976,7 +2993,7 @@ _ssl__SSLContext_impl(PyTypeObject *type, int proto_version)
         return NULL;
     }
 
-    switch(proto_version) {
+    switch(proto_version) {      
 #if defined(SSL3_VERSION) && !defined(OPENSSL_NO_SSL3)
     case PY_SSL_VERSION_SSL3:
         PY_SSL_DEPRECATED("ssl.PROTOCOL_SSLv3 is deprecated", 2, NULL);
@@ -3006,6 +3023,18 @@ _ssl__SSLContext_impl(PyTypeObject *type, int proto_version)
         PY_SSL_DEPRECATED("ssl.PROTOCOL_TLSv1_2 is deprecated", 2, NULL);
         method = TLSv1_2_method();
         break;
+#endif
+#ifdef WITH_NTLS_VERSION
+    case PY_SSL_VERSION_NTLS:
+        PY_SSL_DEPRECATED("ssl.PROTOCOL_NTLS is deprecated", 2, NULL);
+        method = NTLS_method();
+        break;
+    case PY_SSL_VERSION_NTLS_CLIENT:
+        method = NTLS_client_method();
+        break;
+    case PY_SSL_VERSION_NTLS_SERVER:
+        method = NTLS_server_method();
+        break; 
 #endif
     case PY_SSL_VERSION_TLS:
         PY_SSL_DEPRECATED("ssl.PROTOCOL_TLS is deprecated", 2, NULL);
@@ -3053,8 +3082,15 @@ _ssl__SSLContext_impl(PyTypeObject *type, int proto_version)
     self->set_sni_cb = NULL;
     self->state = get_ssl_state(module);
 
+    if (proto_version == PY_SSL_VERSION_NTLS || 
+        proto_version == PY_SSL_VERSION_NTLS_SERVER ||
+        proto_version == PY_SSL_VERSION_NTLS_CLIENT )
+    {
+        SSL_CTX_enable_ntls(ctx);
+    }
+    
     /* Don't check host name by default */
-    if (proto_version == PY_SSL_VERSION_TLS_CLIENT) {
+    if (proto_version == PY_SSL_VERSION_TLS_CLIENT || proto_version == PY_SSL_VERSION_NTLS_CLIENT) {
         self->check_hostname = 1;
         if (_set_verify_mode(self, PY_SSL_CERT_REQUIRED) == -1) {
             Py_DECREF(self);
@@ -3113,6 +3149,11 @@ _ssl__SSLContext_impl(PyTypeObject *type, int proto_version)
     case PY_SSL_VERSION_TLS:
     case PY_SSL_VERSION_TLS_CLIENT:
     case PY_SSL_VERSION_TLS_SERVER:
+#ifdef WITH_NTLS_VERSION    
+    case PY_SSL_VERSION_NTLS:
+    case PY_SSL_VERSION_NTLS_CLIENT:
+    case PY_SSL_VERSION_NTLS_SERVER:    
+#endif    
         result = SSL_CTX_set_min_proto_version(ctx, PY_SSL_MIN_PROTOCOL);
         if (result == 0) {
             PyErr_Format(PyExc_ValueError,
@@ -3414,6 +3455,11 @@ set_min_max_proto_version(PySSLContext *self, PyObject *arg, int what)
     case PY_SSL_VERSION_TLS_CLIENT:  /* fall through */
     case PY_SSL_VERSION_TLS_SERVER:  /* fall through */
     case PY_SSL_VERSION_TLS:
+#ifdef WITH_NTLS_VERSION    
+    case PY_SSL_VERSION_NTLS_CLIENT:  /* fall through */
+    case PY_SSL_VERSION_NTLS_SERVER:  /* fall through */
+    case PY_SSL_VERSION_NTLS: 
+#endif  
         break;
     default:
         PyErr_SetString(
@@ -3532,7 +3578,7 @@ set_num_tickets(PySSLContext *self, PyObject *arg, void *c)
         PyErr_SetString(PyExc_ValueError, "value must be non-negative");
         return -1;
     }
-    if (self->protocol != PY_SSL_VERSION_TLS_SERVER) {
+    if (self->protocol != PY_SSL_VERSION_TLS_SERVER && self->protocol != PY_SSL_VERSION_NTLS_SERVER) {
         PyErr_SetString(PyExc_ValueError,
                         "SSLContext is not a server context.");
         return -1;
@@ -3790,6 +3836,225 @@ error:
     pw_info->error = 1;
     return -1;
 }
+
+/*[clinic input]
+_ssl._SSLContext.load_sign_cert_chain
+    certfile: object
+    keyfile: object = None
+    password: object = None
+
+[clinic start generated code]*/
+
+static PyObject *
+_ssl__SSLContext_load_sign_cert_chain_impl(PySSLContext *self,
+                                           PyObject *certfile,
+                                           PyObject *keyfile,
+                                           PyObject *password)
+/*[clinic end generated code: output=fecaa51059920887 input=d0a6f1817d591d7a]*/
+{  
+    PyObject *certfile_bytes = NULL, *keyfile_bytes = NULL;
+    pem_password_cb *orig_passwd_cb = SSL_CTX_get_default_passwd_cb(self->ctx);
+    void *orig_passwd_userdata = SSL_CTX_get_default_passwd_cb_userdata(self->ctx);
+    _PySSLPasswordInfo pw_info = { NULL, NULL, NULL, 0, 0 };
+    int r;
+
+    errno = 0;
+    ERR_clear_error();
+    if (keyfile == Py_None)
+        keyfile = NULL;
+    if (!PyUnicode_FSConverter(certfile, &certfile_bytes)) {
+        if (PyErr_ExceptionMatches(PyExc_TypeError)) {
+            PyErr_SetString(PyExc_TypeError,
+                            "certfile should be a valid filesystem path");
+        }
+        return NULL;
+    }
+    if (keyfile && !PyUnicode_FSConverter(keyfile, &keyfile_bytes)) {
+        if (PyErr_ExceptionMatches(PyExc_TypeError)) {
+            PyErr_SetString(PyExc_TypeError,
+                            "keyfile should be a valid filesystem path");
+        }
+        goto error;
+    }
+    if (password != Py_None) {
+        if (PyCallable_Check(password)) {
+            pw_info.callable = password;
+        } else if (!_pwinfo_set(&pw_info, password,
+                                "password should be a string or callable")) {
+            goto error;
+        }
+        SSL_CTX_set_default_passwd_cb(self->ctx, _password_callback);
+        SSL_CTX_set_default_passwd_cb_userdata(self->ctx, &pw_info);
+    }
+    PySSL_BEGIN_ALLOW_THREADS_S(pw_info.thread_state);
+    r = SSL_CTX_use_sign_certificate_file(self->ctx,
+        PyBytes_AS_STRING(certfile_bytes), SSL_FILETYPE_PEM);
+    PySSL_END_ALLOW_THREADS_S(pw_info.thread_state);
+    if (r != 1) {
+        if (pw_info.error) {
+            ERR_clear_error();
+            /* the password callback has already set the error information */
+        }
+        else if (errno != 0) {
+            PyErr_SetFromErrno(PyExc_OSError);
+            ERR_clear_error();
+        }
+        else {
+            _setSSLError(get_state_ctx(self), NULL, 0, __FILE__, __LINE__);
+        }
+        goto error;
+    }
+    PySSL_BEGIN_ALLOW_THREADS_S(pw_info.thread_state);
+    r = SSL_CTX_use_sign_PrivateKey_file(self->ctx,
+        PyBytes_AS_STRING(keyfile ? keyfile_bytes : certfile_bytes),
+        SSL_FILETYPE_PEM);
+    PySSL_END_ALLOW_THREADS_S(pw_info.thread_state);
+    Py_CLEAR(keyfile_bytes);
+    Py_CLEAR(certfile_bytes);
+    if (r != 1) {
+        if (pw_info.error) {
+            ERR_clear_error();
+            /* the password callback has already set the error information */
+        }
+        else if (errno != 0) {
+            PyErr_SetFromErrno(PyExc_OSError);
+            ERR_clear_error();
+        }
+        else {
+            _setSSLError(get_state_ctx(self), NULL, 0, __FILE__, __LINE__);
+        }
+        goto error;
+    }
+    PySSL_BEGIN_ALLOW_THREADS_S(pw_info.thread_state);
+    r = SSL_CTX_check_private_key(self->ctx);
+    PySSL_END_ALLOW_THREADS_S(pw_info.thread_state);
+    if (r != 1) {
+        _setSSLError(get_state_ctx(self), NULL, 0, __FILE__, __LINE__);
+        goto error;
+    }
+    SSL_CTX_set_default_passwd_cb(self->ctx, orig_passwd_cb);
+    SSL_CTX_set_default_passwd_cb_userdata(self->ctx, orig_passwd_userdata);
+    PyMem_Free(pw_info.password);
+    Py_RETURN_NONE;
+
+error:
+    SSL_CTX_set_default_passwd_cb(self->ctx, orig_passwd_cb);
+    SSL_CTX_set_default_passwd_cb_userdata(self->ctx, orig_passwd_userdata);
+    PyMem_Free(pw_info.password);
+    Py_XDECREF(keyfile_bytes);
+    Py_XDECREF(certfile_bytes);
+    return NULL;
+}
+
+/*[clinic input]
+_ssl._SSLContext.load_enc_cert_chain
+    certfile: object
+    keyfile: object = None
+    password: object = None
+
+[clinic start generated code]*/
+
+static PyObject *
+_ssl__SSLContext_load_enc_cert_chain_impl(PySSLContext *self,
+                                          PyObject *certfile,
+                                          PyObject *keyfile,
+                                          PyObject *password)
+/*[clinic end generated code: output=46b250816bf74d92 input=e542f63ff7b3656d]*/
+{  
+    PyObject *certfile_bytes = NULL, *keyfile_bytes = NULL;
+    pem_password_cb *orig_passwd_cb = SSL_CTX_get_default_passwd_cb(self->ctx);
+    void *orig_passwd_userdata = SSL_CTX_get_default_passwd_cb_userdata(self->ctx);
+    _PySSLPasswordInfo pw_info = { NULL, NULL, NULL, 0, 0 };
+    int r;
+
+    errno = 0;
+    ERR_clear_error();
+    if (keyfile == Py_None)
+        keyfile = NULL;
+    if (!PyUnicode_FSConverter(certfile, &certfile_bytes)) {
+        if (PyErr_ExceptionMatches(PyExc_TypeError)) {
+            PyErr_SetString(PyExc_TypeError,
+                            "certfile should be a valid filesystem path");
+        }
+        return NULL;
+    }
+    if (keyfile && !PyUnicode_FSConverter(keyfile, &keyfile_bytes)) {
+        if (PyErr_ExceptionMatches(PyExc_TypeError)) {
+            PyErr_SetString(PyExc_TypeError,
+                            "keyfile should be a valid filesystem path");
+        }
+        goto error;
+    }
+    if (password != Py_None) {
+        if (PyCallable_Check(password)) {
+            pw_info.callable = password;
+        } else if (!_pwinfo_set(&pw_info, password,
+                                "password should be a string or callable")) {
+            goto error;
+        }
+        SSL_CTX_set_default_passwd_cb(self->ctx, _password_callback);
+        SSL_CTX_set_default_passwd_cb_userdata(self->ctx, &pw_info);
+    }
+    PySSL_BEGIN_ALLOW_THREADS_S(pw_info.thread_state);
+    r = SSL_CTX_use_enc_certificate_file(self->ctx,
+        PyBytes_AS_STRING(certfile_bytes), SSL_FILETYPE_PEM);
+    PySSL_END_ALLOW_THREADS_S(pw_info.thread_state);
+    if (r != 1) {
+        if (pw_info.error) {
+            ERR_clear_error();
+            /* the password callback has already set the error information */
+        }
+        else if (errno != 0) {
+            PyErr_SetFromErrno(PyExc_OSError);
+            ERR_clear_error();
+        }
+        else {
+            _setSSLError(get_state_ctx(self), NULL, 0, __FILE__, __LINE__);
+        }
+        goto error;
+    }
+    PySSL_BEGIN_ALLOW_THREADS_S(pw_info.thread_state);
+    r = SSL_CTX_use_enc_PrivateKey_file(self->ctx,
+        PyBytes_AS_STRING(keyfile ? keyfile_bytes : certfile_bytes),
+        SSL_FILETYPE_PEM);
+    PySSL_END_ALLOW_THREADS_S(pw_info.thread_state);
+    Py_CLEAR(keyfile_bytes);
+    Py_CLEAR(certfile_bytes);
+    if (r != 1) {
+        if (pw_info.error) {
+            ERR_clear_error();
+            /* the password callback has already set the error information */
+        }
+        else if (errno != 0) {
+            PyErr_SetFromErrno(PyExc_OSError);
+            ERR_clear_error();
+        }
+        else {
+            _setSSLError(get_state_ctx(self), NULL, 0, __FILE__, __LINE__);
+        }
+        goto error;
+    }
+    PySSL_BEGIN_ALLOW_THREADS_S(pw_info.thread_state);
+    r = SSL_CTX_check_private_key(self->ctx);
+    PySSL_END_ALLOW_THREADS_S(pw_info.thread_state);
+    if (r != 1) {
+        _setSSLError(get_state_ctx(self), NULL, 0, __FILE__, __LINE__);
+        goto error;
+    }
+    SSL_CTX_set_default_passwd_cb(self->ctx, orig_passwd_cb);
+    SSL_CTX_set_default_passwd_cb_userdata(self->ctx, orig_passwd_userdata);
+    PyMem_Free(pw_info.password);
+    Py_RETURN_NONE;
+
+error:
+    SSL_CTX_set_default_passwd_cb(self->ctx, orig_passwd_cb);
+    SSL_CTX_set_default_passwd_cb_userdata(self->ctx, orig_passwd_userdata);
+    PyMem_Free(pw_info.password);
+    Py_XDECREF(keyfile_bytes);
+    Py_XDECREF(certfile_bytes);
+    return NULL;    
+}
+
 
 /*[clinic input]
 _ssl._SSLContext.load_cert_chain
@@ -4467,6 +4732,11 @@ set_sni_callback(PySSLContext *self, PyObject *arg, void *c)
                         "sni_callback cannot be set on TLS_CLIENT context");
         return -1;
     }
+    if (self->protocol == PY_SSL_VERSION_NTLS_CLIENT) {
+        PyErr_SetString(PyExc_ValueError,
+                        "sni_callback cannot be set on NTLS_CLIENT context");
+        return -1;
+    }
     Py_CLEAR(self->set_sni_cb);
     if (arg == Py_None) {
         SSL_CTX_set_tlsext_servername_callback(self->ctx, NULL);
@@ -4710,6 +4980,10 @@ static struct PyMethodDef context_methods[] = {
     _SSL__SSLCONTEXT_CERT_STORE_STATS_METHODDEF
     _SSL__SSLCONTEXT_GET_CA_CERTS_METHODDEF
     _SSL__SSLCONTEXT_GET_CIPHERS_METHODDEF
+#ifdef WITH_NTLS_VERSION    
+    _SSL__SSLCONTEXT_LOAD_SIGN_CERT_CHAIN_METHODDEF
+    _SSL__SSLCONTEXT_LOAD_ENC_CERT_CHAIN_METHODDEF
+#endif    
     {NULL, NULL}        /* sentinel */
 };
 
@@ -5905,6 +6179,14 @@ sslmodule_init_constants(PyObject *m)
                             PY_SSL_VERSION_TLS1_1);
     PyModule_AddIntConstant(m, "PROTOCOL_TLSv1_2",
                             PY_SSL_VERSION_TLS1_2);
+#ifdef WITH_NTLS_VERSION                            
+    PyModule_AddIntConstant(m, "PROTOCOL_NTLS",
+                            PY_SSL_VERSION_NTLS);
+    PyModule_AddIntConstant(m, "PROTOCOL_NTLS_CLIENT",
+                            PY_SSL_VERSION_NTLS_CLIENT);
+    PyModule_AddIntConstant(m, "PROTOCOL_NTLS_SERVER",
+                            PY_SSL_VERSION_NTLS_SERVER);
+#endif                            
 
 #define ADD_OPTION(NAME, VALUE) if (sslmodule_add_option(m, NAME, (VALUE)) < 0) return -1
 

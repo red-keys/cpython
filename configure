@@ -1116,6 +1116,7 @@ with_computed_gotos
 with_ensurepip
 with_openssl
 with_openssl_rpath
+enable_ntls_version
 with_ssl_default_suites
 with_builtin_hashlib_hashes
 enable_test_modules
@@ -1823,6 +1824,7 @@ Optional Features:
   --enable-big-digits[=15|30]
                           use big digits (30 or 15 bits) for Python longs
                           (default is 30)]
+  --enable-ntls-version   enable ntls version string
   --disable-test-modules  don't build nor install test modules
 
 Optional Packages:
@@ -23545,26 +23547,18 @@ cat confdefs.h - <<_ACEOF >conftest.$ac_ext
 /* end confdefs.h.  */
 
 
-#include <stdlib.h>
-
-static double m[] = {9.090423496703681e+223, 0.0};
-
-int main (int argc, char *argv[])
-{
-    m[atoi (argv[1])] += atof (argv[2]);
-    return m[atoi (argv[3])] > 0.0;
-}
+double d = 90904234967036810337470478905505011476211692735615632014797120844053488865816695273723469097858056257517020191247487429516932130503560650002327564517570778480236724525140520121371739201496540132640109977779420565776568942592.0;
 
 
 _ACEOF
-if ac_fn_c_try_link "$LINENO"
+if ac_fn_c_try_compile "$LINENO"
 then :
 
 
-if grep noonsees conftest$EXEEXT >/dev/null ; then
+if grep noonsees conftest.$ac_objext >/dev/null ; then
   ax_cv_c_float_words_bigendian=yes
 fi
-if grep seesnoon conftest$EXEEXT >/dev/null ; then
+if grep seesnoon conftest.$ac_objext >/dev/null ; then
   if test "$ax_cv_c_float_words_bigendian" = unknown; then
     ax_cv_c_float_words_bigendian=no
   else
@@ -23574,8 +23568,7 @@ fi
 
 
 fi
-rm -f core conftest.err conftest.$ac_objext conftest.beam \
-    conftest$ac_exeext conftest.$ac_ext
+rm -f core conftest.err conftest.$ac_objext conftest.beam conftest.$ac_ext
 fi
 { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: $ax_cv_c_float_words_bigendian" >&5
 printf "%s\n" "$ax_cv_c_float_words_bigendian" >&6; }
@@ -28219,6 +28212,25 @@ fi
 esac
 { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: $OPENSSL_RPATH" >&5
 printf "%s\n" "$OPENSSL_RPATH" >&6; }
+
+{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking for --enable-ntls-version" >&5
+printf %s "checking for --enable-ntls-version... " >&6; }
+# Check whether --enable-ntls-version was given.
+if test ${enable_ntls_version+y}
+then :
+  enableval=$enable_ntls_version; enable_ntls_version=$enableval
+else $as_nop
+  enable_ntls_version=no
+fi
+
+{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: $enable_ntls_version" >&5
+printf "%s\n" "$enable_ntls_version" >&6; }
+
+if test "$enable_ntls_version" = "yes"; then
+
+printf "%s\n" "#define WITH_NTLS_VERSION 1" >>confdefs.h
+
+fi
 
 # This static linking is NOT OFFICIALLY SUPPORTED and not advertised.
 # Requires static OpenSSL build with position-independent code. Some features
